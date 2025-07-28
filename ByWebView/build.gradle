@@ -10,7 +10,7 @@ android {
         minSdkVersion 14
         targetSdkVersion 31
         versionCode 1
-        versionName "1.0"
+        versionName "1.2.1"
 
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
@@ -20,6 +20,20 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    libraryVariants.all { variant ->
+        variant.outputs.each { output ->
+            // 定义文件名格式：模块名-版本号-构建类型（如：mylibrary-1.0.0-release.aar）
+            def moduleName = project.name // 模块名（可替换为固定字符串，如"mylib"）
+            def versionName = defaultConfig.versionName ?: "1.0.0" // 版本号（取自defaultConfig）
+            def buildType = variant.buildType.name // 构建类型（debug/release）
+
+            // 拼接文件名
+            def fileName = "com.github.youlookwhat-bywebview-${versionName}.aar"
+
+            // 设置输出文件名
+            output.outputFileName = fileName
         }
     }
 
