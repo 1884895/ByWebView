@@ -1,7 +1,8 @@
 package me.jingbin.web;
 
-import android.content.Intent;
+import android.net.Uri;
+import android.webkit.ValueCallback;
 
 public interface OnChromeClientCallback {
-    Intent openFileChooserIntent();
+    boolean openFileChooserPermission(ValueCallback<Uri[]> uploadMsg);
 }

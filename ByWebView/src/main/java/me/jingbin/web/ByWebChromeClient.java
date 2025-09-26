@@ -11,7 +11,10 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -33,14 +36,10 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
-import android.provider.MediaStore;
-import android.os.Environment;
-import android.util.Log;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 
 /**
@@ -311,7 +310,11 @@ public class ByWebChromeClient extends WebChromeClient {
     // For Android > 5.0
     @Override
     public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> uploadMsg, FileChooserParams fileChooserParams) {
-        openFileChooserImplForAndroid5(uploadMsg);
+        if (onChromeClientCallback != null) {
+            onChromeClientCallback.openFileChooserPermission(uploadMsg);
+        } else {
+            openFileChooserImplForAndroid5(uploadMsg);
+        }
         return true;
     }
 
@@ -326,89 +329,85 @@ public class ByWebChromeClient extends WebChromeClient {
         }
     }
 
-    private void openFileChooserImplForAndroid5(ValueCallback<Uri[]> uploadMsg) {
+    public void openFileChooserImplForAndroid5(ValueCallback<Uri[]> uploadMsg) {
         Activity mActivity = this.mActivityWeakReference.get();
         if (mActivity != null && !mActivity.isFinishing()) {
             mUploadMessageForAndroid5 = uploadMsg;
-            if (onChromeClientCallback != null && onChromeClientCallback.openFileChooserIntent() != null) {
-                mActivity.startActivityForResult(onChromeClientCallback.openFileChooserIntent(), RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
-            } else {
-                List<Intent> intentList = new ArrayList<>();
+            List<Intent> intentList = new ArrayList<>();
 
-                // 创建相机拍照Intent
-                Intent takePictureIntent = null;
-                File photoFile = null;
+            // 创建相机拍照Intent
+            Intent takePictureIntent = null;
+            File photoFile = null;
 
-                try {
-                    photoFile = createImageFile(mActivity);
-                    if (photoFile != null) {
-                        mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
-                        takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            try {
+                photoFile = createImageFile(mActivity);
+                if (photoFile != null) {
+                    mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
+                    takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-                        // Android 7.0+ 需要使用 FileProvider
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            try {
-                                mCameraImageUri = FileProvider.getUriForFile(mActivity,
-                                        mActivity.getPackageName() + ".fileprovider", photoFile);
-                                takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                                takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            } catch (IllegalArgumentException e) {
-                                Log.e(TAG, "FileProvider配置错误，请检查AndroidManifest.xml: " + e.getMessage());
-                                // 如果FileProvider未配置，降级使用Uri.fromFile
-                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-                                    mCameraImageUri = Uri.fromFile(photoFile);
-                                } else {
-                                    // Android N及以上必须使用FileProvider
-                                    takePictureIntent = null;
-                                }
+                    // Android 7.0+ 需要使用 FileProvider
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        try {
+                            mCameraImageUri = FileProvider.getUriForFile(mActivity,
+                                    mActivity.getPackageName() + ".fileprovider", photoFile);
+                            takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                            takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (IllegalArgumentException e) {
+                            Log.e(TAG, "FileProvider配置错误，请检查AndroidManifest.xml: " + e.getMessage());
+                            // 如果FileProvider未配置，降级使用Uri.fromFile
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                                mCameraImageUri = Uri.fromFile(photoFile);
+                            } else {
+                                // Android N及以上必须使用FileProvider
+                                takePictureIntent = null;
                             }
-                        } else {
-                            mCameraImageUri = Uri.fromFile(photoFile);
                         }
+                    } else {
+                        mCameraImageUri = Uri.fromFile(photoFile);
+                    }
 
-                        if (takePictureIntent != null && mCameraImageUri != null) {
-                            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraImageUri);
+                    if (takePictureIntent != null && mCameraImageUri != null) {
+                        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCameraImageUri);
 
-                            // 解决部分手机拍照后无法获取数据问题
-                            // Android 11+ 需要额外处理包可见性
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                // Android 11及以上不使用resolveActivity，直接尝试添加
-                                intentList.add(takePictureIntent);
-                            } else if (takePictureIntent.resolveActivity(mActivity.getPackageManager()) != null) {
-                                intentList.add(takePictureIntent);
-                            }
+                        // 解决部分手机拍照后无法获取数据问题
+                        // Android 11+ 需要额外处理包可见性
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            // Android 11及以上不使用resolveActivity，直接尝试添加
+                            intentList.add(takePictureIntent);
+                        } else if (takePictureIntent.resolveActivity(mActivity.getPackageManager()) != null) {
+                            intentList.add(takePictureIntent);
                         }
                     }
-                } catch (IOException e) {
-                    Log.e(TAG, "创建临时文件失败: " + e.getMessage());
-                } catch (Exception e) {
-                    Log.e(TAG, "相机初始化失败: " + e.getMessage());
                 }
+            } catch (IOException e) {
+                Log.e(TAG, "创建临时文件失败: " + e.getMessage());
+            } catch (Exception e) {
+                Log.e(TAG, "相机初始化失败: " + e.getMessage());
+            }
 
-                // 创建图片选择Intent
-                Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
-                contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
-                contentSelectionIntent.setType("image/*");
+            // 创建图片选择Intent
+            Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
+            contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
+            contentSelectionIntent.setType("image/*");
 
-                // Android 11+ 需要额外处理
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    contentSelectionIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
-                }
+            // Android 11+ 需要额外处理
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                contentSelectionIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+            }
 
-                // 创建选择器Intent
-                Intent chooserIntent = Intent.createChooser(contentSelectionIntent, "选择图片");
-                if (!intentList.isEmpty()) {
-                    chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS,
-                            intentList.toArray(new Intent[0]));
-                }
+            // 创建选择器Intent
+            Intent chooserIntent = Intent.createChooser(contentSelectionIntent, "选择图片");
+            if (!intentList.isEmpty()) {
+                chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS,
+                        intentList.toArray(new Intent[0]));
+            }
 
-                try {
-                    mActivity.startActivityForResult(chooserIntent, RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
-                } catch (Exception e) {
-                    Log.e(TAG, "启动文件选择器失败: " + e.getMessage());
-                    mUploadMessageForAndroid5.onReceiveValue(null);
-                    mUploadMessageForAndroid5 = null;
-                }
+            try {
+                mActivity.startActivityForResult(chooserIntent, RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
+            } catch (Exception e) {
+                Log.e(TAG, "启动文件选择器失败: " + e.getMessage());
+                mUploadMessageForAndroid5.onReceiveValue(null);
+                mUploadMessageForAndroid5 = null;
             }
         }
     }
