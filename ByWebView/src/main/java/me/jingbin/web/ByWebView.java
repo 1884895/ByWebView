@@ -40,7 +40,7 @@ public class ByWebView {
     private int mErrorLayoutId;
     private String mErrorTitle;
     private Activity activity;
-    private ByWebChromeClient mWebChromeClient;
+    public ByWebChromeClient mWebChromeClient;
     private ByLoadJsHolder byLoadJsHolder;
 
     private ByWebView(Builder builder) {
@@ -64,6 +64,7 @@ public class ByWebView {
         // 视频、照片、进度条
         mWebChromeClient = new ByWebChromeClient(activity, this);
         mWebChromeClient.setOnByWebChromeCallback(builder.mOnTitleProgressCallback);
+        mWebChromeClient.setOnChromeClientCallback(builder.onChromeClientCallback);
         mWebView.setWebChromeClient(mWebChromeClient);
 
         // 错误页面、页面结束、处理DeepLink
@@ -350,6 +351,13 @@ public class ByWebView {
         private ViewGroup.LayoutParams mLayoutParams;
         private OnTitleProgressCallback mOnTitleProgressCallback;
         private OnByWebClientCallback mOnByWebClientCallback;
+        private OnChromeClientCallback onChromeClientCallback;
+
+
+        public Builder setOnChromeClientCallback(OnChromeClientCallback onChromeClientCallback) {
+            this.onChromeClientCallback = onChromeClientCallback;
+            return this;
+        }
 
         public Builder(Activity activity) {
             this.mActivity = activity;

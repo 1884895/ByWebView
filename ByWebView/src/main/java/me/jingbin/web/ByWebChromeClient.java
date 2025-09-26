@@ -11,7 +11,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Message;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -42,6 +41,8 @@ public class ByWebChromeClient extends WebChromeClient {
     private WeakReference<Activity> mActivityWeakReference;
     private ByWebView mByWebView;
     private ValueCallback<Uri> mUploadMessage;
+
+    private OnChromeClientCallback onChromeClientCallback;
     private ValueCallback<Uri[]> mUploadMessageForAndroid5;
     private static final int RESULT_CODE_FILE_CHOOSER = 1;
     private static final int RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5 = 2;
@@ -314,15 +315,18 @@ public class ByWebChromeClient extends WebChromeClient {
         Activity mActivity = this.mActivityWeakReference.get();
         if (mActivity != null && !mActivity.isFinishing()) {
             mUploadMessageForAndroid5 = uploadMsg;
-            Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
-            contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
-            contentSelectionIntent.setType("image/*");
+            if (onChromeClientCallback != null && onChromeClientCallback.openFileChooserIntent() != null) {
+                mActivity.startActivityForResult(onChromeClientCallback.openFileChooserIntent(), RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
+            } else {
+                Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
+                contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                contentSelectionIntent.setType("image/*");
+                Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
+                chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
+                chooserIntent.putExtra(Intent.EXTRA_TITLE, "图片选择");
+                mActivity.startActivityForResult(chooserIntent, RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
+            }
 
-            Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
-            chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
-            chooserIntent.putExtra(Intent.EXTRA_TITLE, "图片选择");
-
-            mActivity.startActivityForResult(chooserIntent, RESULT_CODE_FILE_CHOOSER_FOR_ANDROID_5);
         }
     }
 
@@ -385,5 +389,9 @@ public class ByWebChromeClient extends WebChromeClient {
         } else {
             return super.getDefaultVideoPoster();
         }
+    }
+
+    public void setOnChromeClientCallback(OnChromeClientCallback onChromeClientCallback) {
+        this.onChromeClientCallback = onChromeClientCallback;
     }
 }
